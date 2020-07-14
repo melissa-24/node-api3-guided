@@ -5,6 +5,14 @@ const Messages = require('../messages/messages-model.js');
 
 const router = express.Router();
 
+router.use((req, res, next) => {
+  console.log('In the hubs Router');
+  next();
+})
+
+// the above should be used towards the top as you want it to show this at all times. 
+
+
 // this only runs if the url has /api/hubs in it
 router.get('/', (req, res) => {
   Hubs.find(req.query)
@@ -22,7 +30,7 @@ router.get('/', (req, res) => {
 
 // /api/hubs/:id
 
-router.get('/:id', (req, res) => {
+router.get('/:id', validateId, (req, res) => {
   Hubs.findById(req.params.id)
   .then(hub => {
     if (hub) {
@@ -40,7 +48,7 @@ router.get('/:id', (req, res) => {
   });
 });
 
-router.post('/', (req, res) => {
+router.post('/', validateBody, (req, res) => {
   Hubs.add(req.body)
   .then(hub => {
     res.status(201).json(hub);
@@ -54,7 +62,7 @@ router.post('/', (req, res) => {
   });
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', validateId, (req, res) => {
   Hubs.remove(req.params.id)
   .then(count => {
     if (count > 0) {
@@ -72,7 +80,7 @@ router.delete('/:id', (req, res) => {
   });
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', validateId, validateBody, (req, res) => {
   Hubs.update(req.params.id, req.body)
   .then(hub => {
     if (hub) {
@@ -92,7 +100,7 @@ router.put('/:id', (req, res) => {
 
 // add an endpoint that returns all the messages for a hub
 // this is a sub-route or sub-resource
-router.get('/:id/messages', (req, res) => {
+router.get('/:id/messages', validateId, (req, res) => {
   Hubs.findHubMessages(req.params.id)
   .then(messages => {
     res.status(200).json(messages);
@@ -107,7 +115,7 @@ router.get('/:id/messages', (req, res) => {
 });
 
 // add an endpoint for adding new message to a hub
-router.post('/:id/messages', (req, res) => {
+router.post('/:id/messages', validateId, validateBody, (req, res) => {
   const messageInfo = { ...req.body, hub_id: req.params.id };
 
   Messages.add(messageInfo)
@@ -122,5 +130,33 @@ router.post('/:id/messages', (req, res) => {
     });
   });
 });
+
+// We don't specify the path here as we want it to apply to id
+function validateId(req, res, next) {
+  const {id} = req.params;
+  Hubs.findById(id)
+    .then(hub => {
+      if (hub) {
+      req.hub = hub;
+      next();
+      } else {
+        // res.status(404).json({message: 'hub id not found'});
+        next({code: 404, message: 'invalid hub id'});
+      }
+    })
+    .catch(err => {
+      console.log(err);
+     // res.status(500).json({message: 'failed to process', err});
+     next({code:500, message: 'failed to process'});
+  });
+}
+
+function validateBody(req, res, next) {
+  if (req.body && Object.keys(req.body).length > 0) {
+    next();
+  } else {
+    res.status(400).json({ message: 'please include a request body' });
+  }
+}
 
 module.exports = router;
